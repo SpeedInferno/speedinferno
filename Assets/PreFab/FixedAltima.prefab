@@ -1459,6 +1459,8 @@ GameObject:
   - component: {fileID: 7384111587012205862}
   - component: {fileID: 7384111587012205861}
   - component: {fileID: 1516759851}
+  - component: {fileID: 4314977867497020096}
+  - component: {fileID: 9121340480403471105}
   m_Layer: 0
   m_Name: FixedAltima
   m_TagString: Player
@@ -1522,7 +1524,7 @@ Rigidbody:
   m_IsKinematic: 0
   m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!65 &7384111587012205863
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1592,7 +1594,7 @@ MonoBehaviour:
     wheelFR: {fileID: 7384111588454307305}
     wheelRL: {fileID: 7384111587359161602}
     wheelRR: {fileID: 7384111587953658585}
-  maxSpeed: 180
+  maxSpeed: 220
   currentSpeed: 0
   slipAngle: 0
   steeringCurve:
@@ -1697,6 +1699,8 @@ MonoBehaviour:
   nitroPart1: {fileID: 7257575489122591769}
   nitroPart2: {fileID: 7257575487469649247}
   hudElement: {fileID: 0}
+  motorPowerDelay: 1
+  steerReturnRate: 6
 --- !u!114 &1516759851
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2356,3 +2360,191 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 336881577860626724, guid: 664afd9a2058df449a4b3e926fe8fa2f, type: 3}
   m_PrefabInstance: {fileID: 8910430045415810899}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &4314977867497020096
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7690120167933108349}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d09f4765d43108c4ea3302b98fd172de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DriftTelemetry
+  showOverlay: 0
+  toggleOverlayKey: 94
+  drawGizmos: 1
+  overlayFontSize: 16
+  toggleRecordKey: 32
+  resetPeaksKey: 103
+  outputFolder: Telemetry
+  runLabel: drift_q_release
+  minSpeedForAngle: 3
+--- !u!114 &9121340480403471105
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7690120167933108349}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e68ba13079e795c448259413b23d15af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ArcadeDriftController
+  minDriftSpeed: 40
+  initiationSteerThreshold: 0.3
+  entryDuration: 0.25
+  neutralDriftAngle: 18
+  maxDriftAngle: 35
+  counterSteerAngle: 5
+  targetAngleRate: 50
+  exitSpeed: 30
+  exitAngle: 5
+  exitAngleHoldTime: 0.2
+  fullCounterSteerHoldTime: 0.3
+  allowChainFlick: 1
+  chainSteerThreshold: 0.6
+  chainDelay: 0.15
+  driftSteerResponse: 6
+  airborneExitTime: 0.2
+  recoveryDuration: 0.5
+  spinAngle: 60
+  yawRateLimit: 90
+  spinRecoveryExitAngle: 30
+  spinRecoveryMaxTime: 2
+  spinMaxYawAccel: 900
+  spinGripBlend: 0.25
+  spinReentryCooldown: 0.5
+  yawRateBySpeed:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 130
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 220
+      value: 0.75
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  yawAccelBySpeed:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 130
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 220
+      value: 0.75
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  rearGripLossBySpeed:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 220
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  applyRearGrip: 1
+  rearGripMultiplier: 0.5
+  applyDriveScale: 1
+  driftDriveScale: 0.7
+  applyYawAssist: 1
+  angleGain: 4
+  initiationGainBoost: 1.5
+  maxRelativeYawRate: 90
+  rateGain: 8
+  maxYawAccel: 460
+  recoveryAngleGain: 2
+  spinRateGain: 12
+  applyFrontCounterSteer: 1
+  counterSteerFactor: 0.9
+  playerSteerTrim: 12
+  maxWheelAngle: 45
+  applySpeedControl: 1
+  targetSpeedLossPercent: 10
+  speedLossWindow: 2
+  speedTrackGain: 6
+  maxSpeedCorrection: 7
+  lateralDamping: 0.5
+  applyVelocityAlignment: 1
+  velocityAlignRate: 75
+  applyStability: 1
+  stabilityStartSpeed: 100
+  stabilityFullSpeed: 140
+  maxLateralG: 1.5
+  stabilitySlipDeadband: 4
+  stabilitySlipGain: 4
+  stabilityRateGain: 8
+  stabilityMaxYawAccel: 300
+  highSpeedRearGrip: 1.15
+  highSpeedRearGripFade: 20
+  applyDriftEffects: 1
+  effectsMinAngle: 8
+  effectsMinBlend: 0.3
+  frontEffectsSlip: 0.45
+  driftNitroRefillRate: 5
+  nitroRefillMinAngle: 10
+  showOverlay: 0
