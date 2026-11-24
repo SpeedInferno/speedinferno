@@ -26,7 +26,7 @@ public class SceneManagerCustom : MonoBehaviour
    }
    public void fun_LoadMainGame()
    {
-      AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName:"MainGame");
+      AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName:GameSelection.SelectedMapScene); // map picked in the Garage
       StartCoroutine(fun_loadingStatus(operation));
    }
 
@@ -41,6 +41,11 @@ public class SceneManagerCustom : MonoBehaviour
          yield return null;
       }
    
+   }
+
+   public void fun_LoadGarage()
+   {
+      SceneManager.LoadScene(sceneName:"Garage");
    }
 
    public void fun_loadMapSelection()

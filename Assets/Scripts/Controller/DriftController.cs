@@ -17,7 +17,7 @@ public class DriftController : MonoBehaviour
     private PlayerCarController playerCar;
     void Start()
     {   
-        playerCar = GameObject.Find("FixedAltima").GetComponent<PlayerCarController>();
+        playerCar = GetComponent<PlayerCarController>();
     }
     void FixedUpdate()
     {

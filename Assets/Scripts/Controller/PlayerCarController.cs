@@ -39,9 +39,8 @@ public class PlayerCarController : MonoBehaviour
     private int intCurrentGear =1;
 
     public GameObject tireTrail;
-    public Material brakeMat;
-    public Color brakeColor;
-    public float brakeColorIntensity=2f;
+    // Tail lights are a separate child object (TailLights component); the car only tells it when to light up
+    private TailLights tailLights;
 
     //Nitro PowerUp
     private bool nitoInput ;
@@ -85,7 +84,8 @@ public class PlayerCarController : MonoBehaviour
         hudElement.fun_SetMaxNitroCapacity(nitroMaxCapacity);
         hudElement.fun_SetCurentNitro(nitroCapacity);
 
-        driftController = GameObject.Find("FixedAltima").GetComponent<DriftController>();
+        driftController = GetComponent<DriftController>();
+        tailLights = GetComponentInChildren<TailLights>(true);
 
     }
 
@@ -229,10 +229,9 @@ public class PlayerCarController : MonoBehaviour
             fun_ApplyFrictionValuesOnTires();
             nitroCapacity = nitroCapacity + 5 * Time.deltaTime;
 
-            if(brakeMat)
+            if(tailLights)
             {
-                brakeMat.EnableKeyword("_EMISSION");
-                brakeMat.SetColor("_EmissionColor",brakeColor*Mathf.Pow(2,brakeColorIntensity));
+                tailLights.SetDrift(true);
             }
             if(Mathf.Abs(wheelHits[0].forwardSlip) + Mathf.Abs(wheelHits[0].sidewaysSlip) > slipAllowance)
             {
@@ -270,10 +269,9 @@ public class PlayerCarController : MonoBehaviour
             tireTrails.wheelFR.emitting = false;
             tireTrails.wheelRL.emitting = false;
             tireTrails.wheelRR.emitting = false;
-            if(brakeMat)
+            if(tailLights)
             {
-                brakeMat.DisableKeyword("_EMISSION");
-                brakeMat.SetColor("_EmissionColor",Color.black);
+                tailLights.SetDrift(false);
             }                
         }   
     }
