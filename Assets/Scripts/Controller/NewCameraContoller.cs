@@ -29,7 +29,18 @@ public class NewCameraContoller : MonoBehaviour
 
     void Start()
     {
-        playerScript = GameObject.Find("FixedAltima").GetComponent<PlayerCarController>();
+        // Follow whichever car was spawned (Garage selection), using that car's own camera anchors
+        playerScript = FindAnyObjectByType<PlayerCarController>();
+        Transform pivot = playerScript.transform.Find("camPivot");
+        if(pivot != null)
+        {
+            cameraPivot = pivot.gameObject;
+        }
+        Transform defAnchor = playerScript.transform.Find("camDefAnchor");
+        if(defAnchor != null)
+        {
+            cameraDefault = defAnchor.gameObject;
+        }
         playerRB = playerScript.GetComponent<Rigidbody>();
         mainCam = GetComponentInChildren<Camera>();
         if(mainCam != null)
