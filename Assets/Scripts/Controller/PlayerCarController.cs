@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem; // [INPUT SYSTEM MIGRATION]
 using TMPro;
 
 public class PlayerCarController : MonoBehaviour
@@ -15,6 +16,57 @@ public class PlayerCarController : MonoBehaviour
     public AnimationCurve steeringCurve , motorPowerCurve , nitroCurve;
     private float steeringInput;
     public float steeringAngle;
+
+    // [INPUT SYSTEM MIGRATION] 3-second delay before motor power applies
+    private float motorPowerStartTime;
+    public float motorPowerDelay = 3f;
+
+    // [INPUT SYSTEM MIGRATION]
+    // Keyboard actions built in code so no Inspector or .inputactions wiring is required.
+    private InputAction steerAction;
+    private InputAction driftAction;
+    private InputAction nitroAction;
+
+    // [DRIFT STEP 3] Read-only input values for ArcadeDriftController. They only read input;
+    // nothing in this controller uses them, so driving is unchanged.
+    public float RawSteerInput
+    {
+        get
+        {
+            if (rightBtn != null && rightBtn.isPressed) return rightBtn.holdPress;
+            if (leftBtn != null && leftBtn.isPressed) return -leftBtn.holdPress;
+            return steerAction != null ? steerAction.ReadValue<float>() : 0f;
+        }
+    }
+    public bool DriftInputHeld => (driftAction != null && driftAction.IsPressed()) || (driftBtn != null && driftBtn.isPressed);
+
+    // [DRIFT STEP 13] When true, ArcadeDriftController drives drift smoke, tyre trails, the brake light, nitro refill
+    // and the nitro cut from the real drift state. fun_ApplyDrift then only sets driftMode (raw input), which the
+    // old friction toggle and the telemetry still use. Camera code is not touched.
+    [Tooltip("[DRIFT STEP 14] How fast steering returns to centre when no steering key is held (input units per second). 6 = full lock to straight in ~0.17 s. 0 = old instant snap.")]
+    public float steerReturnRate = 6f;
+    [HideInInspector] public bool useExternalDriftEffects = false;
+    [HideInInspector] public bool externalDriftActive = false; // nitro is cut while this is true
+    private bool fxBrakeOn = false;
+
+    public void SetDriftEffects(bool fl, bool fr, bool rl, bool rr, bool brakeLight)
+    {
+        SetWheelFx(particleSmokeFL, tireTrails != null ? tireTrails.wheelFL : null, fl);
+        SetWheelFx(particleSmokeFR, tireTrails != null ? tireTrails.wheelFR : null, fr);
+        SetWheelFx(particleSmokeRL, tireTrails != null ? tireTrails.wheelRL : null, rl);
+        SetWheelFx(particleSmokeRR, tireTrails != null ? tireTrails.wheelRR : null, rr);
+        if (brakeLight != fxBrakeOn && tailLights) tailLights.SetDrift(brakeLight); // tail lights (TailLights component) glow with the drift smoke
+        fxBrakeOn = brakeLight;
+    }
+
+    static void SetWheelFx(ParticleSystem ps, TrailRenderer tr, bool on)
+    {
+        if (ps) { if (on) { if (!ps.isPlaying) ps.Play(); } else if (ps.isPlaying) ps.Stop(); }
+        if (tr) tr.emitting = on;
+    }
+
+    // [DRIFT STEP 13] Adds nitro and never goes above nitroMaxCapacity (the old refill could).
+    public void AddNitro(float amount) { nitroCapacity = Mathf.Min(nitroCapacity + amount, nitroMaxCapacity); }
 
     //private float defaultRearSideFiction=1f , driftRearSideFiction =0.4f; //defaultRearSideFiction=3.0f , driftRearSideFiction = 1.2
     //Values for wheel collider forward and sideway frixtion in non-drift state
@@ -53,7 +105,47 @@ public class PlayerCarController : MonoBehaviour
     //Collectables
 
     public HudElements hudElement;
-    private DriftController driftController;
+    //private DriftController driftController;
+
+    // [INPUT SYSTEM MIGRATION]
+    // Sets up the New Input System keyboard bindings: A/D or Left/Right steer, Q drift, E nitro.
+    void Awake()
+    {
+        steerAction = new InputAction("Steer", InputActionType.Value, expectedControlType: "Axis");
+        steerAction.AddCompositeBinding("1DAxis")
+            .With("Negative", "<Keyboard>/a")
+            .With("Positive", "<Keyboard>/d");
+        steerAction.AddCompositeBinding("1DAxis")
+            .With("Negative", "<Keyboard>/leftArrow")
+            .With("Positive", "<Keyboard>/rightArrow");
+
+        driftAction = new InputAction("Drift", InputActionType.Button, "<Keyboard>/q");
+        nitroAction = new InputAction("Nitro", InputActionType.Button, "<Keyboard>/e");
+    }
+
+    // [INPUT SYSTEM MIGRATION]
+    void OnEnable()
+    {
+        steerAction?.Enable();
+        driftAction?.Enable();
+        nitroAction?.Enable();
+    }
+
+    // [INPUT SYSTEM MIGRATION]
+    void OnDisable()
+    {
+        steerAction?.Disable();
+        driftAction?.Disable();
+        nitroAction?.Disable();
+    }
+
+    // [INPUT SYSTEM MIGRATION]
+    void OnDestroy()
+    {
+        steerAction?.Dispose();
+        driftAction?.Dispose();
+        nitroAction?.Dispose();
+    }
 
     // Start is called before the first frame update
     void Start()
@@ -84,8 +176,13 @@ public class PlayerCarController : MonoBehaviour
         hudElement.fun_SetMaxNitroCapacity(nitroMaxCapacity);
         hudElement.fun_SetCurentNitro(nitroCapacity);
 
-        driftController = GetComponent<DriftController>();
         tailLights = GetComponentInChildren<TailLights>(true);
+
+        // [INPUT SYSTEM MIGRATION] Fixed: DriftController is on the same GameObject (FixedAltima).
+        //driftController = GetComponent<DriftController>();
+
+        // [INPUT SYSTEM MIGRATION] Record start time for 3-second motor power delay
+        motorPowerStartTime = Time.timeSinceLevelLoad;
 
     }
 
@@ -97,8 +194,12 @@ public class PlayerCarController : MonoBehaviour
         //currentSpeed =(2f * Mathf.PI * radiusOfWheel * wheelRpm * 60f)/1000f;
         currentSpeed = playerCarRB.linearVelocity.magnitude * 3.6f;
         currentSpeedClamped = Mathf.Lerp(currentSpeedClamped,currentSpeed,Time.deltaTime);
+        // [DRIFT STEP 2] Friction is applied here, once per physics step (was in Update via fun_ApplyDrift).
+        fun_FetchFrictionValues();
+        fun_ApplyFrictionValuesOnTires();
         fun_ApplyTireCollidersToMeshes();
         fun_ApplymotorPower();
+        fun_ApplyDriftDriveScale(); // [DRIFT STEP 5]
         fun_ApplySteering();
 
 
@@ -141,8 +242,14 @@ public class PlayerCarController : MonoBehaviour
     // Apply motor power to the vechicle
     void fun_ApplymotorPower()
     {   
+        // [INPUT SYSTEM MIGRATION] 3-second delay before applying motor power
+        if (Time.timeSinceLevelLoad - motorPowerStartTime < motorPowerDelay)
+        {
+            return;
+        }
 
-        if(Input.GetKey(KeyCode.Q)|| driftBtn.isPressed == true)
+        // [INPUT SYSTEM MIGRATION]
+        if((driftAction.IsPressed() || driftBtn.isPressed == true) && !useDriftDriveScale) // [DRIFT STEP 5]
         {
             tireColliders.wheelRL.motorTorque = -200 ;
             tireColliders.wheelRR.motorTorque = -200 ;            
@@ -180,7 +287,11 @@ public class PlayerCarController : MonoBehaviour
     // Apply steering to the vechicle
     void fun_ApplySteering()
     {
-        steeringInput = Input.GetAxis("Horizontal");
+        // [INPUT SYSTEM MIGRATION]
+        // MoveTowards reproduces the legacy Horizontal axis smoothing (sensitivity/gravity = 3).
+        slipAngle = Vector3.Angle(transform.forward, playerCarRB.linearVelocity-transform.forward);
+        float prevSteerInput = steeringInput; // [DRIFT STEP 14]
+        steeringInput = Mathf.MoveTowards(steeringInput, steerAction.ReadValue<float>(), 3f * Time.deltaTime);
         if (rightBtn.isPressed == true)
         {
            steeringInput = rightBtn.holdPress; 
@@ -192,21 +303,32 @@ public class PlayerCarController : MonoBehaviour
 
         steeringAngle = steeringInput*steeringCurve.Evaluate(currentSpeed);
 
+        // [INPUT SYSTEM MIGRATION] Zero steering input immediately when no input detected
+        if (Mathf.Abs(steerAction.ReadValue<float>()) < 0.01f && !rightBtn.isPressed && !leftBtn.isPressed)
+        {
+            // [DRIFT STEP 14] Return to centre at steerReturnRate instead of snapping to 0 in one physics step (was a 41 deg wheel jump).
+            steeringInput = steerReturnRate > 0f ? Mathf.MoveTowards(prevSteerInput, 0f, steerReturnRate * Time.deltaTime) : 0f;
+        }
+
+
         if (slipAngle < 120f )//&& bolCarOnGround == true)
         //if(driftMode)
         {
-            steeringAngle += 0.887f*Vector3.SignedAngle(transform.forward, playerCarRB.linearVelocity + transform.forward, Vector3.up);
+            if (Mathf.Abs(steeringInput) > 0.1f)
+            {
+                steeringAngle += 0.887f * Vector3.SignedAngle(transform.forward, playerCarRB.linearVelocity + transform.forward, Vector3.up);
+            }            
             steeringAngle = Mathf.Clamp(steeringAngle, -45f, 45f);
         }
         
         tireColliders.wheelFL.steerAngle = steeringAngle;
         tireColliders.wheelFR.steerAngle = steeringAngle;
 
-        if (driftController.currentYawAngle> 42)
+        /*if (driftController.currentYawAngle> 42)
         {
            steeringAngle =  -(steeringInput*driftController.currentYawAngle-15f);
            Debug.Log("steeringAngle: "+steeringAngle);
-        }
+        }*/
         tireColliders.wheelFL.steerAngle = steeringAngle;
         tireColliders.wheelFR.steerAngle = steeringAngle;
 
@@ -215,18 +337,21 @@ public class PlayerCarController : MonoBehaviour
     
     // Apply drift to the vechicle
     void fun_ApplyDrift()
-    {   WheelHit[] wheelHits = new WheelHit[4];
+    {
+        // [DRIFT STEP 13] Effects come from ArcadeDriftController; driftMode stays raw input.
+        if (useExternalDriftEffects) { driftMode = driftAction.IsPressed() || driftBtn.isPressed == true; return; }
+        WheelHit[] wheelHits = new WheelHit[4];
         tireColliders.wheelFL.GetGroundHit(out wheelHits[0]);
         tireColliders.wheelFR.GetGroundHit(out wheelHits[1]);
         tireColliders.wheelRL.GetGroundHit(out wheelHits[2]);
         tireColliders.wheelRR.GetGroundHit(out wheelHits[3]);
         float slipAllowance = 0.45f;
 
-        if(Input.GetKey(KeyCode.Q)|| driftBtn.isPressed == true)
+        // [INPUT SYSTEM MIGRATION]
+        if(driftAction.IsPressed() || driftBtn.isPressed == true)
         {
             driftMode =  true;
-            fun_FetchFrictionValues();
-            fun_ApplyFrictionValuesOnTires();
+            // [DRIFT STEP 2] friction is now applied in FixedUpdate
             nitroCapacity = nitroCapacity + 5 * Time.deltaTime;
 
             if(tailLights)
@@ -258,8 +383,7 @@ public class PlayerCarController : MonoBehaviour
         else
         {   
             driftMode = false;
-            fun_FetchFrictionValues();    
-            fun_ApplyFrictionValuesOnTires();
+            // [DRIFT STEP 2] friction is now applied in FixedUpdate
 
             particleSmokeFL.Stop();
             particleSmokeFR.Stop();
@@ -338,11 +462,55 @@ public class PlayerCarController : MonoBehaviour
         }
     }
 
+    // [DRIFT STEP 2] Per-axle grip multipliers. Each one scales WheelFrictionCurve.stiffness
+    // for one axle (front or rear) and one direction (sideways or forward).
+    // All default to 1, which reproduces the previous behaviour exactly.
+    // A future drift component will set them through SetAxleGripMultipliers().
+    private float frontSideGripMul = 1f, rearSideGripMul = 1f, frontFwdGripMul = 1f, rearFwdGripMul = 1f;
+    private float baseStiffnessFF = -1f, baseStiffnessSF = -1f; // Inspector stiffness, captured on first use
+    // [DRIFT STEP 4] Set by ArcadeDriftController. When true, the old all-wheel drift friction set is
+    // not used: the car keeps its normal friction and the drift system lowers rear grip itself.
+    [HideInInspector] public bool useNormalFrictionInDrift = false;
+    // [DRIFT STEP 5] Set by ArcadeDriftController. When true, holding drift no longer replaces drive
+    // with -200 Nm; the normal engine torque is used and scaled by driveTorqueScale instead.
+    [HideInInspector] public bool useDriftDriveScale = false;
+    [HideInInspector] public float driveTorqueScale = 1f;
+
+    public void SetAxleGripMultipliers(float frontSide, float rearSide, float frontForward, float rearForward)
+    {
+        frontSideGripMul = Mathf.Max(0f, frontSide);
+        rearSideGripMul = Mathf.Max(0f, rearSide);
+        frontFwdGripMul = Mathf.Max(0f, frontForward);
+        rearFwdGripMul = Mathf.Max(0f, rearForward);
+    }
+
+    public void ResetAxleGripMultipliers()
+    {
+        SetAxleGripMultipliers(1f, 1f, 1f, 1f);
+    }
+
+    // [DRIFT STEP 5] Scales positive (driving) rear torque only. The -2000 Nm speed limiter and the
+    // start delay are left exactly as they are. With driveTorqueScale = 1 nothing changes.
+    private void fun_ApplyDriftDriveScale()
+    {
+        if (!useDriftDriveScale || driveTorqueScale == 1f) return;
+        if (tireColliders.wheelRL.motorTorque > 0f) tireColliders.wheelRL.motorTorque *= driveTorqueScale;
+        if (tireColliders.wheelRR.motorTorque > 0f) tireColliders.wheelRR.motorTorque *= driveTorqueScale;
+    }
+
     private void fun_ApplyFrictionValuesOnTires()
     {
+        // Capture the Inspector stiffness once. The old code re-read it from wheelRL every frame;
+        // reading it once stops a rear multiplier from feeding back into the front wheels.
+        if (baseStiffnessFF < 0f)
+        {
+            baseStiffnessFF = tireColliders.wheelRL.forwardFriction.stiffness;
+            baseStiffnessSF = tireColliders.wheelRL.sidewaysFriction.stiffness;
+        }
+
         WheelFrictionCurve frictionCurveForward = tireColliders.wheelRL.forwardFriction;
         WheelFrictionCurve frictionCurveSideway = tireColliders.wheelRL.sidewaysFriction;
-        if (driftMode == true)
+        if (driftMode == true && !useNormalFrictionInDrift) // [DRIFT STEP 4]
         {
             //Forward friction values
             frictionCurveForward.extremumSlip = DriftExtreSlipFF;
@@ -366,19 +534,24 @@ public class PlayerCarController : MonoBehaviour
             frictionCurveSideway.extremumSlip = nonDriftExtreSlipSF;
             frictionCurveSideway.extremumValue = nonDriftExtreValueSF;
             frictionCurveSideway.asymptoteSlip = nonDriftAsymSlipSF;
-            frictionCurveSideway.asymptoteValue = nonDriftAsymValueSF;            
-        }    
-        //frictionCurve.stiffness = driftRearSideFiction;
+            frictionCurveSideway.asymptoteValue = nonDriftAsymValueSF;
+        }
+
+        // Front axle
+        frictionCurveForward.stiffness = baseStiffnessFF * frontFwdGripMul;
+        frictionCurveSideway.stiffness = baseStiffnessSF * frontSideGripMul;
         tireColliders.wheelFR.sidewaysFriction = frictionCurveSideway;
         tireColliders.wheelFL.sidewaysFriction = frictionCurveSideway;
         tireColliders.wheelFR.forwardFriction = frictionCurveForward;
         tireColliders.wheelFL.forwardFriction = frictionCurveForward;
 
+        // Rear axle
+        frictionCurveForward.stiffness = baseStiffnessFF * rearFwdGripMul;
+        frictionCurveSideway.stiffness = baseStiffnessSF * rearSideGripMul;
         tireColliders.wheelRL.sidewaysFriction = frictionCurveSideway;
         tireColliders.wheelRR.sidewaysFriction = frictionCurveSideway;
         tireColliders.wheelRL.forwardFriction = frictionCurveForward;
         tireColliders.wheelRR.forwardFriction = frictionCurveForward;
-
     }
     // to fetch speed ratio for shift gear effect
     public float fun_getSpeedRatio()
@@ -491,7 +664,8 @@ public class PlayerCarController : MonoBehaviour
         //########################## Code for Nitro keyboard button ########################################################
         //########################################### Uncomment before using on PC   ########################################
 
-        if( nitoInput = Input.GetKeyDown(KeyCode.E))
+        // [INPUT SYSTEM MIGRATION]
+        if( nitoInput = nitroAction.WasPressedThisFrame())
         {
             Debug.Log("Nitro touch button pressed:");
             if(nitroStart == false && nitroCapacity>0f)
@@ -501,7 +675,7 @@ public class PlayerCarController : MonoBehaviour
 
         }
 
-        if(driftMode == true)
+        if(useExternalDriftEffects ? externalDriftActive : driftMode) // [DRIFT STEP 13] nitro cut follows the real drift
         {
            nitroStart = false; 
         }

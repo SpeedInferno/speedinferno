@@ -724,11 +724,6 @@ PrefabInstance:
       objectReference: {fileID: 1956813843}
     - target: {fileID: 7384111587012205861, guid: d34b9ff063463aa46a2c87b54ef225c7,
         type: 3}
-      propertyPath: maxSpeed
-      value: 140
-      objectReference: {fileID: 0}
-    - target: {fileID: 7384111587012205861, guid: d34b9ff063463aa46a2c87b54ef225c7,
-        type: 3}
       propertyPath: nitroBtn
       value: 
       objectReference: {fileID: 1956813840}
